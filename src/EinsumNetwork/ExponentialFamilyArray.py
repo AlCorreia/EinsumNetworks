@@ -496,17 +496,20 @@ class BinomialArray(ExponentialFamilyArray):
                 log_h = log_h.sum(-1)
             return log_h
 
-    def _sample(self, num_samples, params, dtype=torch.float32, memory_efficient_binomial_sampling=True):
+    def _sample(self, num_samples, params, dtype=torch.float32, memory_efficient_binomial_sampling=True, continuous_bernoulli=False):
         with torch.no_grad():
             params = params / self.N
-            if memory_efficient_binomial_sampling:
-                samples = torch.zeros((num_samples,) + params.shape, dtype=dtype, device=params.device)
-                for n in range(int(self.N)):
-                    rand = torch.rand((num_samples,) + params.shape, device=params.device)
-                    samples += (rand < params).type(dtype)
+            if continuous_bernoulli:
+                samples = params[None, ...].repeat(num_samples, 1, 1, 1, 1)
             else:
-                rand = torch.rand((num_samples,) + params.shape + (int(self.N),), device=params.device)
-                samples = torch.sum(rand < params.unsqueeze(-1), -1).type(dtype)
+                if memory_efficient_binomial_sampling:
+                    samples = torch.zeros((num_samples,) + params.shape, dtype=dtype, device=params.device)
+                    for n in range(int(self.N)):
+                        rand = torch.rand((num_samples,) + params.shape, device=params.device)
+                        samples += (rand < params).type(dtype)
+                else:
+                    rand = torch.rand((num_samples,) + params.shape + (int(self.N),), device=params.device)
+                    samples = torch.sum(rand < params.unsqueeze(-1), -1).type(dtype)
             return shift_last_axis_to(samples, 2)
 
     def _argmax(self, params, dtype=torch.float32):
